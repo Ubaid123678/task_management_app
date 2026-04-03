@@ -1,0 +1,12 @@
+{
+    "cmake.ignoreCMakeListsMissing": true,
+    "java.jdt.ls.java.home": "C:\\Program Files\\Android\\Android Studio\\jbr",
+    "jdk.jdkhome": "C:\\Program Files\\Android\\Android Studio\\jbr",
+    "java.configuration.runtimes": [
+        {
+            "name": "JavaSE-21",
+            "path": "C:\\Program Files\\Android\\Android Studio\\jbr",
+            "default": true
+        }
+    ]
+}   
