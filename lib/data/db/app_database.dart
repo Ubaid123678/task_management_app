@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
@@ -18,6 +20,9 @@ class AppDatabase {
   static const String subtasksTable = 'subtasks';
 
   Database? _database;
+  final StreamController<int> _tasksChangedController =
+      StreamController<int>.broadcast();
+  int _tasksRevision = 0;
 
   final List<Task> _webTasks = <Task>[];
   final List<Subtask> _webSubtasks = <Subtask>[];
@@ -25,6 +30,15 @@ class AppDatabase {
   int _webSubtaskCounter = 0;
 
   int _taskSortDate(DateTime? value) => value?.millisecondsSinceEpoch ?? 0;
+
+  Stream<int> get tasksChanged => _tasksChangedController.stream;
+
+  void _notifyTasksChanged() {
+    if (_tasksChangedController.isClosed) {
+      return;
+    }
+    _tasksChangedController.add(++_tasksRevision);
+  }
 
   bool _containsSearch(Task task, String search) {
     if (search.isEmpty) {
@@ -93,11 +107,14 @@ class AppDatabase {
     if (kIsWeb) {
       final id = ++_webTaskCounter;
       _webTasks.add(task.copyWith(id: id));
+      _notifyTasksChanged();
       return id;
     }
 
     final db = await database;
-    return db.insert(tasksTable, task.toMap());
+    final insertedId = await db.insert(tasksTable, task.toMap());
+    _notifyTasksChanged();
+    return insertedId;
   }
 
   Future<List<Task>> getAllTasks() async {
@@ -373,16 +390,21 @@ class AppDatabase {
       }
 
       _webTasks[index] = task;
+      _notifyTasksChanged();
       return 1;
     }
 
     final db = await database;
-    return db.update(
+    final updated = await db.update(
       tasksTable,
       task.toMap(),
       where: 'id = ?',
       whereArgs: [task.id],
     );
+    if (updated > 0) {
+      _notifyTasksChanged();
+    }
+    return updated;
   }
 
   double _webProgressForTask(int taskId) {
@@ -437,12 +459,13 @@ class AppDatabase {
         progress: progress,
         updatedAt: DateTime.now(),
       );
+      _notifyTasksChanged();
       return 1;
     }
 
     final db = await database;
     final progress = isCompleted ? 1.0 : await _dbProgressForTask(db, taskId);
-    return db.update(
+    final updated = await db.update(
       tasksTable,
       {
         'is_completed': isCompleted ? 1 : 0,
@@ -452,6 +475,10 @@ class AppDatabase {
       where: 'id = ?',
       whereArgs: [taskId],
     );
+    if (updated > 0) {
+      _notifyTasksChanged();
+    }
+    return updated;
   }
 
   Future<void> applyTaskCompletion({
@@ -485,6 +512,8 @@ class AppDatabase {
               _webSubtasks[i] = subtask.copyWith(isDone: false);
             }
           }
+
+          _notifyTasksChanged();
 
           return;
         }
@@ -520,6 +549,8 @@ class AppDatabase {
             whereArgs: [task.id],
           );
         });
+
+        _notifyTasksChanged();
         return;
       }
     }
@@ -532,11 +563,23 @@ class AppDatabase {
       final before = _webTasks.length;
       _webTasks.removeWhere((task) => task.id == taskId);
       _webSubtasks.removeWhere((subtask) => subtask.taskId == taskId);
-      return before - _webTasks.length;
+      final deleted = before - _webTasks.length;
+      if (deleted > 0) {
+        _notifyTasksChanged();
+      }
+      return deleted;
     }
 
     final db = await database;
-    return db.delete(tasksTable, where: 'id = ?', whereArgs: [taskId]);
+    final deleted = await db.delete(
+      tasksTable,
+      where: 'id = ?',
+      whereArgs: [taskId],
+    );
+    if (deleted > 0) {
+      _notifyTasksChanged();
+    }
+    return deleted;
   }
 
   Future<int> insertSubtask(Subtask subtask) async {
@@ -600,27 +643,44 @@ class AppDatabase {
       }
 
       _webSubtasks[index] = subtask;
+      _notifyTasksChanged();
       return 1;
     }
 
     final db = await database;
-    return db.update(
+    final updated = await db.update(
       subtasksTable,
       subtask.toMap(),
       where: 'id = ?',
       whereArgs: [subtask.id],
     );
+    if (updated > 0) {
+      _notifyTasksChanged();
+    }
+    return updated;
   }
 
   Future<int> deleteSubtask(int subtaskId) async {
     if (kIsWeb) {
       final before = _webSubtasks.length;
       _webSubtasks.removeWhere((subtask) => subtask.id == subtaskId);
-      return before - _webSubtasks.length;
+      final deleted = before - _webSubtasks.length;
+      if (deleted > 0) {
+        _notifyTasksChanged();
+      }
+      return deleted;
     }
 
     final db = await database;
-    return db.delete(subtasksTable, where: 'id = ?', whereArgs: [subtaskId]);
+    final deleted = await db.delete(
+      subtasksTable,
+      where: 'id = ?',
+      whereArgs: [subtaskId],
+    );
+    if (deleted > 0) {
+      _notifyTasksChanged();
+    }
+    return deleted;
   }
 
   Future<void> toggleSubtask({
@@ -668,6 +728,7 @@ class AppDatabase {
           progress: progress,
           updatedAt: DateTime.now(),
         );
+        _notifyTasksChanged();
       }
 
       return progress;
@@ -676,12 +737,16 @@ class AppDatabase {
     final db = await database;
     final progress = await _dbProgressForTask(db, taskId);
 
-    await db.update(
+    final updated = await db.update(
       tasksTable,
       {'progress': progress, 'updated_at': DateTime.now().toIso8601String()},
       where: 'id = ?',
       whereArgs: [taskId],
     );
+
+    if (updated > 0) {
+      _notifyTasksChanged();
+    }
 
     return progress;
   }

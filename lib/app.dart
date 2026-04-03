@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'core/constants/app_constants.dart';
+import 'features/home/presentation/screens/home_shell_screen.dart';
+import 'features/onboarding/presentation/screens/app_intro_screen.dart';
 import 'core/routes/app_router.dart';
-import 'core/routes/app_routes.dart';
 import 'core/theme/app_theme.dart';
 import 'features/settings/presentation/controllers/app_settings_controller.dart';
 
@@ -24,7 +25,13 @@ class TaskManagementApp extends StatelessWidget {
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
             themeMode: settings.themeMode,
-            initialRoute: AppRoutes.home,
+            home: settings.hasSeenIntro
+                ? const HomeShellScreen()
+                : AppIntroScreen(
+                    onDone: () async {
+                      await settings.markIntroSeen();
+                    },
+                  ),
             onGenerateRoute: AppRouter.onGenerateRoute,
           );
         },

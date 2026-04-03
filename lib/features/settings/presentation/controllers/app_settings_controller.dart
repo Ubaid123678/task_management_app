@@ -10,10 +10,14 @@ class AppSettingsController extends ChangeNotifier {
     required bool notificationsEnabled,
     required NotificationSoundOption notificationSound,
     required bool autoCompleteOnDue,
+    required bool weekStartsOnMonday,
+    required bool hasSeenIntro,
   }) : _themeMode = themeMode,
        _notificationsEnabled = notificationsEnabled,
        _notificationSound = notificationSound,
        _autoCompleteOnDue = autoCompleteOnDue,
+       _weekStartsOnMonday = weekStartsOnMonday,
+       _hasSeenIntro = hasSeenIntro,
        _prefs = prefs;
 
   static const String _themeModeKey = 'settings.theme_mode';
@@ -22,17 +26,24 @@ class AppSettingsController extends ChangeNotifier {
   static const String _notificationSoundKey = 'settings.notifications.sound';
   static const String _autoCompleteOnDueKey =
       'settings.tasks.auto_complete_on_due';
+  static const String _weekStartsOnMondayKey =
+      'settings.tasks.week_starts_on_monday';
+  static const String _hasSeenIntroKey = 'settings.app.has_seen_intro';
 
   final SharedPreferences _prefs;
   ThemeMode _themeMode;
   bool _notificationsEnabled;
   NotificationSoundOption _notificationSound;
   bool _autoCompleteOnDue;
+  bool _weekStartsOnMonday;
+  bool _hasSeenIntro;
 
   ThemeMode get themeMode => _themeMode;
   bool get notificationsEnabled => _notificationsEnabled;
   NotificationSoundOption get notificationSound => _notificationSound;
   bool get autoCompleteOnDue => _autoCompleteOnDue;
+  bool get weekStartsOnMonday => _weekStartsOnMonday;
+  bool get hasSeenIntro => _hasSeenIntro;
 
   static Future<AppSettingsController> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -48,6 +59,8 @@ class AppSettingsController extends ChangeNotifier {
       notificationsEnabled: prefs.getBool(_notificationsEnabledKey) ?? true,
       notificationSound: _soundFrom(rawSound),
       autoCompleteOnDue: prefs.getBool(_autoCompleteOnDueKey) ?? true,
+      weekStartsOnMonday: prefs.getBool(_weekStartsOnMondayKey) ?? true,
+      hasSeenIntro: prefs.getBool(_hasSeenIntroKey) ?? false,
     );
   }
 
@@ -84,6 +97,24 @@ class AppSettingsController extends ChangeNotifier {
     }
     _autoCompleteOnDue = value;
     await _prefs.setBool(_autoCompleteOnDueKey, value);
+    notifyListeners();
+  }
+
+  Future<void> setWeekStartsOnMonday(bool value) async {
+    if (_weekStartsOnMonday == value) {
+      return;
+    }
+    _weekStartsOnMonday = value;
+    await _prefs.setBool(_weekStartsOnMondayKey, value);
+    notifyListeners();
+  }
+
+  Future<void> markIntroSeen() async {
+    if (_hasSeenIntro) {
+      return;
+    }
+    _hasSeenIntro = true;
+    await _prefs.setBool(_hasSeenIntroKey, true);
     notifyListeners();
   }
 

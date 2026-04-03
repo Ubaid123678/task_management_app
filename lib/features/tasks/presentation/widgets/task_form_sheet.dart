@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../core/theme/app_theme.dart';
 import '../../../../data/models/task.dart';
 
 class TaskFormSheet extends StatefulWidget {
@@ -18,6 +19,7 @@ class _TaskFormSheetState extends State<TaskFormSheet> {
   late final TextEditingController _descriptionController;
   late RepeatType _repeatType;
   late DateTime _selectedDateTime;
+  late bool _hasDueDate;
   late List<int> _repeatDays;
   int? _repeatInterval;
   final _formKey = GlobalKey<FormState>();
@@ -33,6 +35,7 @@ class _TaskFormSheetState extends State<TaskFormSheet> {
       text: task?.description ?? '',
     );
     _repeatType = task?.repeatType ?? RepeatType.none;
+    _hasDueDate = task?.dueDateTime != null;
     _selectedDateTime =
         task?.dueDateTime ?? DateTime.now().add(const Duration(hours: 1));
     _repeatDays = List<int>.from(task?.repeatDays ?? const <int>[]);
@@ -47,6 +50,10 @@ class _TaskFormSheetState extends State<TaskFormSheet> {
   }
 
   Future<void> _pickDateTime() async {
+    if (!_hasDueDate) {
+      return;
+    }
+
     final pickedDate = await showDatePicker(
       context: context,
       initialDate: _selectedDateTime,
@@ -78,6 +85,22 @@ class _TaskFormSheetState extends State<TaskFormSheet> {
     });
   }
 
+  void _applyPreset(Duration offset, String titleHint, String descriptionHint) {
+    final now = DateTime.now();
+    setState(() {
+      _hasDueDate = true;
+      _selectedDateTime = now.add(offset);
+    });
+
+    if (_titleController.text.trim().isEmpty) {
+      _titleController.text = titleHint;
+    }
+
+    if (_descriptionController.text.trim().isEmpty) {
+      _descriptionController.text = descriptionHint;
+    }
+  }
+
   void _save() {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -92,7 +115,7 @@ class _TaskFormSheetState extends State<TaskFormSheet> {
       description: _descriptionController.text.trim().isEmpty
           ? null
           : _descriptionController.text.trim(),
-      dueDateTime: _selectedDateTime,
+      dueDateTime: _hasDueDate ? _selectedDateTime : null,
       isCompleted: oldTask?.isCompleted ?? false,
       repeatType: _repeatType,
       repeatDays: _repeatType == RepeatType.weekly
@@ -113,6 +136,7 @@ class _TaskFormSheetState extends State<TaskFormSheet> {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return SafeArea(
       child: Padding(
@@ -129,18 +153,86 @@ class _TaskFormSheetState extends State<TaskFormSheet> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  _isEdit ? 'Edit Task' : 'Create Task',
-                  style: textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(18),
+                    gradient: LinearGradient(
+                      colors: [
+                        AppTheme.brandTeal.withValues(alpha: 0.16),
+                        AppTheme.brandCoral.withValues(alpha: 0.1),
+                      ],
+                    ),
                   ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: const BoxDecoration(
+                          color: AppTheme.brandTeal,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.bolt, color: Colors.white),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _isEdit ? 'Refine Task' : 'Launch New Task',
+                              style: textTheme.titleLarge,
+                            ),
+                            Text(
+                              'Use presets for faster planning',
+                              style: textTheme.bodyMedium,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Text('Quick presets', style: textTheme.labelSmall),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _PresetButton(
+                      label: 'Deep Work (2h)',
+                      onTap: () => _applyPreset(
+                        const Duration(hours: 2),
+                        'Deep Work Session',
+                        'Focus block for high-impact work.',
+                      ),
+                    ),
+                    _PresetButton(
+                      label: 'Daily Review',
+                      onTap: () => _applyPreset(
+                        const Duration(hours: 6),
+                        'Daily Review',
+                        'Review completed and pending work.',
+                      ),
+                    ),
+                    _PresetButton(
+                      label: 'This Weekend',
+                      onTap: () => _applyPreset(
+                        const Duration(days: 2),
+                        'Weekend Plan',
+                        'Catch up on personal backlog items.',
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _titleController,
                   decoration: const InputDecoration(
                     labelText: 'Task title',
-                    hintText: 'Prepare project presentation',
+                    hintText: 'Write release summary',
                   ),
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
@@ -154,44 +246,78 @@ class _TaskFormSheetState extends State<TaskFormSheet> {
                   controller: _descriptionController,
                   decoration: const InputDecoration(
                     labelText: 'Description',
-                    hintText: 'Add notes for this task',
+                    hintText: 'What exactly should be done?',
                   ),
                   minLines: 2,
                   maxLines: 4,
                 ),
                 const SizedBox(height: 16),
-                InkWell(
-                  borderRadius: BorderRadius.circular(14),
-                  onTap: _pickDateTime,
-                  child: Ink(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 14,
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    color: isDark ? const Color(0xFF1E293B) : Colors.white,
+                    border: Border.all(
+                      color: isDark
+                          ? const Color(0xFF334155)
+                          : const Color(0xFFE2E8F0),
                     ),
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surface,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: Theme.of(context).colorScheme.outlineVariant,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.schedule),
-                        const SizedBox(width: 10),
-                        Text(
-                          DateFormat(
-                            'EEE, dd MMM yyyy - hh:mm a',
-                          ).format(_selectedDateTime),
+                  ),
+                  child: Column(
+                    children: [
+                      SwitchListTile.adaptive(
+                        value: _hasDueDate,
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Has due date'),
+                        subtitle: const Text(
+                          'Turn off for flexible backlog items',
                         ),
-                      ],
-                    ),
+                        onChanged: (value) {
+                          setState(() {
+                            _hasDueDate = value;
+                          });
+                        },
+                      ),
+                      if (_hasDueDate)
+                        InkWell(
+                          borderRadius: BorderRadius.circular(14),
+                          onTap: _pickDateTime,
+                          child: Ink(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 14,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.surface,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.outlineVariant,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.schedule),
+                                const SizedBox(width: 10),
+                                Text(
+                                  DateFormat(
+                                    'EEE, dd MMM yyyy - hh:mm a',
+                                  ).format(_selectedDateTime),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<RepeatType>(
                   initialValue: _repeatType,
-                  decoration: const InputDecoration(labelText: 'Repeat type'),
+                  decoration: const InputDecoration(
+                    labelText: 'Repeat cadence',
+                  ),
                   items: const [
                     DropdownMenuItem(
                       value: RepeatType.none,
@@ -289,7 +415,7 @@ class _TaskFormSheetState extends State<TaskFormSheet> {
                   child: FilledButton.icon(
                     onPressed: _save,
                     icon: Icon(_isEdit ? Icons.save_outlined : Icons.add_task),
-                    label: Text(_isEdit ? 'Save Changes' : 'Create Task'),
+                    label: Text(_isEdit ? 'Save Task' : 'Create Task'),
                   ),
                 ),
               ],
@@ -297,6 +423,22 @@ class _TaskFormSheetState extends State<TaskFormSheet> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _PresetButton extends StatelessWidget {
+  const _PresetButton({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ActionChip(
+      avatar: const Icon(Icons.flash_on, size: 16),
+      label: Text(label),
+      onPressed: onTap,
     );
   }
 }
